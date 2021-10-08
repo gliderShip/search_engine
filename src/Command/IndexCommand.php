@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\DTO\DocumentDto;
 use App\Exception\ConsoleArgumentException;
 use App\Exception\IndexException;
 use App\Service\DocumentManager;
@@ -10,6 +11,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class IndexCommand extends ConsoleCommand
 {
@@ -17,33 +19,33 @@ class IndexCommand extends ConsoleCommand
     protected static $defaultDescription = 'Add a short description for your command';
 
     /**
+     * @var ValidatorInterface
+     */
+    private $validator;
+
+    /**
      * @var IndexArgumentsValidator
      */
     private $indexArgumentsValidator;
-
-    /**
-     * @var integer $documentId
-     */
-    private $documentId;
-
-    /**
-     * @var array $tokens
-     */
-    private $tokens;
 
     /**
      * @var DocumentManager
      */
     private $documentManager;
 
+    /**
+     * @var DocumentDto
+     */
+    private $documentDto;
 
-    public function __construct(string $name, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager)
+
+    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager)
     {
         parent::__construct($name);
+        $this->validator = $validator;
         $this->indexArgumentsValidator = $indexArgumentsValidator;
         $this->documentManager = $documentManager;
     }
-
 
     protected function configure(): void
     {
@@ -57,8 +59,10 @@ class IndexCommand extends ConsoleCommand
     {
         parent::initialize($input, $output);
 
-        $this->documentId = $input->getArgument('docId');
-        $this->tokens = $input->getArgument('tokens');
+        $documentId = $input->getArgument('docId');
+        dump($documentId);
+        $tokens = $input->getArgument('tokens');
+        $this->documentDto = new DocumentDto($documentId, $tokens);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -66,28 +70,24 @@ class IndexCommand extends ConsoleCommand
         $io = new SymfonyStyle($input, $output);
 
         try {
-            $this->indexArgumentsValidator->validate($this->documentId, $this->tokens);
-        } catch (ConsoleArgumentException $e) {
-            $io->write($e->getMessage());
-            return self::CONSOLE_ARGUMENT_ERROR;
+            $this->indexArgumentsValidator->validate($this->documentDto);
         } catch (IndexException $e) {
             $io->write($e->getMessage());
             return self::INDEX_ERROR;
         }
 
-        $this->documentManager->upsert($this->documentId, $this->tokens);
+        $response = $this->documentManager->upsert($this->documentDto);
 
-
-        if ($this->tokens) {
-            $io->note(sprintf('You passed an argument: %s', $this->tokens));
+        $keys = $this->documentManager->redis->keys('*');
+        dump($keys);
+        foreach ($keys as $key) {
+            dump($key);
+            dump($this->documentManager->redis->zrange($key, 0, -1));
         }
 
-        if ($input->getOption('option1')) {
-            // ...
-        }
 
-        $io->success('You have a new command! Now make it your own! Pass --help to see your options.');
+        $io->write('index ok ' . $this->documentDto->getId());
 
-        return 0;
+        return self::CONSOLE_SUCCESS;
     }
 }
