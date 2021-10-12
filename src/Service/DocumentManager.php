@@ -7,8 +7,8 @@ use Predis\Client;
 
 class DocumentManager
 {
-    private const DOCUMENT_KEY = 'documents:';
-    private const TOKEN_KEY = 'tokens:';
+    public const DOCUMENT_KEY = 'documents:';
+    public const TOKEN_KEY = 'tokens:';
 
     /**
      * @var Client
@@ -62,15 +62,26 @@ class DocumentManager
         return $documents;
     }
 
-    public function findByTokens($tokens): array
+    public function getDocumentsContainingAll($tokens): array
     {
         $keys = array_map([$this, 'getTokenStorageKey'], $tokens);
         $keys_list = implode('_', $keys);
-        $tmpSetKey = 'serach:' . $keys_list;
+        $tmpSetKey = 'search_all:' . $keys_list;
         $this->redis->zinterstore($tmpSetKey, $keys);
         $documents = $this->redis->zrange($tmpSetKey, 0, -1);
         $this->redis->del($tmpSetKey);
         dump($documents);
+        return $documents;
+    }
+
+    public function getDocumentsContainingAny($tokens): array
+    {
+        $keys = array_map([$this, 'getTokenStorageKey'], $tokens);
+        $keys_list = implode('_', $keys);
+        $tmpSetKey = 'search_any:' . $keys_list;
+        $this->redis->zunionstore($tmpSetKey, $keys);
+        $documents = $this->redis->zrange($tmpSetKey, 0, -1);
+        $this->redis->del($tmpSetKey);
         return $documents;
     }
 

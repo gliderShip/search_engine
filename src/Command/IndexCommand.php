@@ -60,7 +60,6 @@ class IndexCommand extends ConsoleCommand
         parent::initialize($input, $output);
 
         $documentId = $input->getArgument('docId');
-        dump($documentId);
         $tokens = $input->getArgument('tokens');
         $this->documentDto = new DocumentDto($documentId, $tokens);
     }

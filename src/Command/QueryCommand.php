@@ -3,7 +3,9 @@
 namespace App\Command;
 
 use App\Service\DocumentManager;
+use App\Service\Parser;
 use App\Validator\IndexArgumentsValidator;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -14,6 +16,12 @@ class QueryCommand extends ConsoleCommand
 {
     protected static $defaultName = 'query';
     protected static $defaultDescription = 'Add a short description for your command';
+
+    /**
+     * @var Parser
+     */
+    private $parser;
+
     /**
      * @var ValidatorInterface
      */
@@ -28,14 +36,20 @@ class QueryCommand extends ConsoleCommand
      * @var DocumentManager
      */
     private $documentManager;
+    /**
+     * @var LoggerInterface
+     */
+    private $logger;
 
 
-    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager)
+    public function __construct(string $name = null, Parser $parser, DocumentManager $documentManager, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, LoggerInterface $logger)
     {
         parent::__construct($name);
+        $this->parser = $parser;
         $this->validator = $validator;
         $this->indexArgumentsValidator = $indexArgumentsValidator;
         $this->documentManager = $documentManager;
+        $this->logger = $logger;
     }
 
     protected function configure(): void
@@ -49,10 +63,15 @@ class QueryCommand extends ConsoleCommand
     {
         $io = new SymfonyStyle($input, $output);
         $query = $input->getArgument('expression');
-        dump($query);
-        $documents = $this->documentManager->findByTokens($query);
-        $documents = $this->documentManager->findByToken($query);
-        dump($documents);
+        $strQuery = implode(' ', $query);
+        $this->logger->debug('Query: ', ['query' => $query, 'str_query' => $strQuery]);
+
+        $ast = $this->parser->tokenize($strQuery);
+        dump($ast);
+//        $documents = $this->documentManager->getDocumentsContainingAny($query);
+//        $documents = $this->documentManager->getDocumentsContainingAll($query);
+//        $documents = $this->documentManager->findByToken($query);
+//        dump($documents);
 //        dd('the end');
 //
 //
@@ -60,4 +79,6 @@ class QueryCommand extends ConsoleCommand
 
         return 0;
     }
+
+
 }
