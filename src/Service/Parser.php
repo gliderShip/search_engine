@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Model\Token;
 use Psr\Log\LoggerInterface;
 
 class Parser
@@ -10,7 +11,7 @@ class Parser
     public const OR_OPERATOR = '|';
     public const LEFT_BRACKET_OPERATOR = '(';
     public const RIGHT_BRACKET_OPERATOR = ')';
-    public const DELIMITERS = [
+    public const EXPRESSION_DELIMITERS = [
         ' '//space
     ];
 
@@ -21,26 +22,35 @@ class Parser
         self::RIGHT_BRACKET_OPERATOR
     ];
 
-    public const TOKENS = self::DELIMITERS + self::OPERATORS;
+    public const LEXEMES = self::EXPRESSION_DELIMITERS + self::OPERATORS;
 
 
     /**
      * @var DocumentManager
      */
     private $documentManager;
+
+    /**
+     * @var ExpressionManager
+     */
+    private $expressionService;
+
     /**
      * @var LoggerInterface
      */
     private $logger;
 
-    public function __construct(DocumentManager $documentManager, LoggerInterface $logger)
+
+    public function __construct(DocumentManager $documentManager, ExpressionManager $expressionService, LoggerInterface $logger)
     {
         $this->documentManager = $documentManager;
         $this->logger = $logger;
+        $this->expressionService = $expressionService;
     }
 
     private function evaluate($expression)
     {
+        $expressionModel  = $this->expressionService->tokenize($expression);
         if ($this->isTerm($expression)) {
             return $this->documentManager->findByToken($expression);
         }
@@ -72,10 +82,25 @@ class Parser
 
     public function tokenize(string $expression)
     {
-        $expression = trim($expression);
-        $tokensList = implode('', self::TOKENS);
-        $lexemes = strtok($expression, $tokensList);
-        dd($lexemes);
+        $expression =
+        if(empty($expression)){
+            return null;
+        }
+
+        if($this->isTerm($expression)){
+            $token = new Token();
+            $token->setLexeme($expression);
+            $token->setType(Token::TERM);
+            return $token;
+        }
+
+        $length = strlen($expression);
+        $token = getNextToken($expression);
+
+
+//        $tokensList = implode('', self::LEXEMES);
+//        $lexemes = strtok($expression, $tokensList);
+//        dd($lexemes);
 //        $firstChar = $expression[0];
 //        if(ctype_alnum($firstChar)){
 //            $term =
@@ -95,6 +120,20 @@ class Parser
 //
 //        return $tokens;
         return explode(' ', $expression);
+
+    }
+
+
+    private function getNextToken(string $expression){
+        if(empty($expression)){
+            return null;
+        }
+
+        $firstChar = $expression[0];
+        switch ()
+        if(in_array($firstChar, self::OPERATORS){
+            $token = new Token($firstChar, Token::)
+        }
 
     }
 
