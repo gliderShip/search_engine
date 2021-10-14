@@ -2,27 +2,30 @@
 
 namespace App\Model;
 
+use http\Exception\BadMethodCallException;
+use http\Exception\InvalidArgumentException;
+
 class Token
 {
-    public const TERM = 'TERM';
     public const AND_OPERATOR = '&';
     public const OR_OPERATOR = '|';
-    public const LEFT_BRACKET_OPERATOR = '(';
-    public const RIGHT_BRACKET_OPERATOR = ')';
+
+    public const LEFT_BRACKET_LEXEME = '(';
+    public const RIGHT_BRACKET_LEXEME = ')';
+
+    public const TYPE_LITERAL = 'LITERAL';
+    public const TYPE_OPERATOR = 'OPERATOR';
+    public const TYPE_SPACE = 'SPACE';
+    public const TYPE_BRACKET = 'BRACKET';
+
     public const EXPRESSION_DELIMITERS = [
-        ' '//space
+        self::TYPE_SPACE
     ];
 
-    public const OPERATORS = [
-        self::AND_OPERATOR,
-        self::OR_OPERATOR,
-        self::LEFT_BRACKET_OPERATOR,
-        self::RIGHT_BRACKET_OPERATOR
-    ];
+    public const BRACKETS = [self::LEFT_BRACKET_LEXEME, self::RIGHT_BRACKET_LEXEME];
+    public const OPERATORS = [self::AND_OPERATOR, self::OR_OPERATOR];
 
-    public const LEXEMES = self::EXPRESSION_DELIMITERS + self::OPERATORS;
-
-    public const TYPES = [self::TERM];
+    public const TYPES = [self::TYPE_LITERAL, self::TYPE_OPERATOR, self::TYPE_SPACE, self::TYPE_BRACKET];
 
     private string $lexeme;
 
@@ -34,46 +37,105 @@ class Token
     private int $position;
 
     /**
-     * @param $lexeme
-     * @param $type
+     * @param string $lexeme
+     * @param string $type
+     * @param int $position
      */
-    public function __construct(string $lexeme, string $type, int $position)
+    public function __construct(string $lexeme, int $position, string $type = null)
     {
         $this->lexeme = $lexeme;
-        $this->type = $type;
-        $this->position = $position;
+
+        if ($position < 0) {
+            throw new BadMethodCallException("Invalid lexeme position ->:$position");
+        } else {
+            $this->position = $position;
+        }
+
+        if ($type) {
+            self::validateLexemeType($lexeme, $type);
+            $this->type = $type;
+        } else {
+            $this->type = self::guessLexemeType($lexeme);
+        }
     }
 
-    /**
-     * @return mixed
-     */
-    public function getLexeme()
+    public static function validateLexemeType(string $lexeme, string $type)
     {
-        return $this->lexeme;
+        switch ($type) {
+            case self::TYPE_LITERAL:
+                if (!self::isLexemeLiteral($lexeme)) {
+                    throw new BadMethodCallException("Invalid literal lexeme ->:$lexeme");
+                }
+                break;
+            case self::TYPE_BRACKET:
+                if (!self::isLexemeBracket($lexeme)) {
+                    throw new BadMethodCallException("Invalid bracket lexeme ->:$lexeme");
+                }
+                break;
+            case self::TYPE_SPACE:
+                if (!self::isLexemeSpace($lexeme)) {
+                    throw new BadMethodCallException("Invalid space lexeme ->:$lexeme");
+                }
+                break;
+            case self::TYPE_OPERATOR:
+                if (!self::isLexemeOperator($lexeme)) {
+                    throw new BadMethodCallException("Invalid operator lexeme ->:$lexeme");
+                }
+                break;
+            default:
+                throw new BadMethodCallException("Invalid lexeme type->:$type");
+        }
     }
 
-    /**
-     * @param mixed $lexeme
-     */
-    public function setLexeme($lexeme): void
+    public static function isLexemeLiteral(string $lexeme): bool
     {
-        $this->lexeme = $lexeme;
+        if (ctype_alnum($lexeme)) {
+            return true;
+        }
+
+        return false;
     }
 
-    /**
-     * @return mixed
-     */
-    public function getType()
+    public static function isLexemeBracket(string $lexeme): bool
     {
-        return $this->type;
+        if (in_array($lexeme, self::BRACKETS)) {
+            return true;
+        }
+
+        return false;
     }
 
-    /**
-     * @param mixed $type
-     */
-    public function setType($type): void
+    public static function isLexemeSpace(string $lexeme): bool
     {
-        $this->type = $type;
+        if (in_array($lexeme, self::EXPRESSION_DELIMITERS)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static function isLexemeOperator(string $lexeme): bool
+    {
+        if (in_array($lexeme, self::OPERATORS)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function guessLexemeType(string $lexeme): string
+    {
+        if (in_array($lexeme, self::EXPRESSION_DELIMITERS)) {
+            return self::TYPE_SPACE;
+        } elseif (in_array($lexeme, self::BRACKETS)) {
+            return self::TYPE_BRACKET;
+        } elseif (in_array($lexeme, self::OPERATORS)) {
+            return self::TYPE_OPERATOR;
+        } elseif (ctype_alnum($lexeme)) {
+            return self::TYPE_LITERAL;
+        } else {
+            throw new InvalidArgumentException("Invalid lexeme ->:" . $lexeme);
+        }
     }
 
     /**
@@ -84,17 +146,55 @@ class Token
         return $this->position;
     }
 
-    /**
-     * @param int $position
-     */
-    public function setPosition(int $position): void
-    {
-        $this->position = $position;
-    }
-
     public function getEndPosition(): int
     {
-        return $this->position + strlen($this->lexeme) -1;
+        return $this->position + strlen($this->lexeme) - 1;
+    }
+
+    public function isLiteral(): bool
+    {
+        return $this->getType() == self::TYPE_LITERAL;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getType()
+    {
+        return $this->type;
+    }
+
+    public function isOperator(): bool
+    {
+        return $this->getType() == self::TYPE_OPERATOR;
+    }
+
+    public function isSpace(): bool
+    {
+        return $this->getType() == self::TYPE_SPACE;
+    }
+
+    public function isBracket(): bool
+    {
+        return $this->getType() == self::TYPE_BRACKET;
+    }
+
+    public function isOpenBracket(): bool
+    {
+        return ($this->getType() == self::TYPE_BRACKET) && ($this->getLexeme() == self::LEFT_BRACKET_LEXEME);
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getLexeme()
+    {
+        return $this->lexeme;
+    }
+
+    public function isClosedBracket(): bool
+    {
+        return ($this->getType() == self::TYPE_BRACKET) && ($this->getLexeme() == self::RIGHT_BRACKET_LEXEME);
     }
 
 

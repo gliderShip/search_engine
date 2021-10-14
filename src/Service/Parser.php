@@ -90,7 +90,7 @@ class Parser
         if($this->isTerm($expression)){
             $token = new Token();
             $token->setLexeme($expression);
-            $token->setType(Token::TERM);
+            $token->setType(Token::TYPE_LITERAL);
             return $token;
         }
 

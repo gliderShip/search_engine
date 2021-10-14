@@ -9,11 +9,6 @@ use http\Exception\BadMethodCallException;
 class LexicalAnalyzer
 {
 
-    public function isTerm(&$command, int $index)
-    {
-
-    }
-
     /**
      * @throws BadExpressionException
      */
