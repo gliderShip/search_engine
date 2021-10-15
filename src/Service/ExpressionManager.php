@@ -3,13 +3,18 @@
 namespace App\Service;
 
 use App\Exception\BadExpressionException;
+use App\Model\CompoundExpression;
 use App\Model\Expression;
+use App\Model\ExpressionInterface;
+use App\Model\ExpressionLiteral;
 use App\Model\Token;
+use App\Model\TokenBracket;
+use App\Model\TokenLiteral;
+use App\Model\TokenOperator;
 use Psr\Log\LoggerInterface;
 
 class ExpressionManager
 {
-
     private TokenManager $tokenManager;
     private LoggerInterface $logger;
     private LexicalAnalyzer $lexicalAnalyzer;
@@ -24,8 +29,9 @@ class ExpressionManager
     /**
      * @throws BadExpressionException
      */
-    public function tokenize($command, int $index = 0): ?Expression
+    public function tokenize($command, int $index = 0): ?ExpressionInterface
     {
+        $this->logger->debug("Command ->:[$command]    index ->:[$index]");
         $command = trim($command);
         if (empty($command)) {
             return null;
@@ -36,22 +42,62 @@ class ExpressionManager
             return null;
         }
 
-        if (Token::isLexemeLiteral($subCommand)) {
-            $token = new Token($subCommand, $index, Token::TYPE_LITERAL);
-            $expression = new Expression($token);
+        if (TokenLiteral::isValidLexeme($subCommand)) {
+            $token = new TokenLiteral($subCommand, $index);
+            $expression = new ExpressionLiteral($token);
             return $expression;
         }
 
         // Command is not a literal
-        $firstToken = $this->tokenManager->getNextToken($command, $index);
-        $leftToken = $this->skipSpaces($firstToken, $command);
+        $leftToken = $this->tokenManager->getNextToken($command, $index);
         if (!$leftToken) {
-            throw new BadExpressionException("Literal or expression group () expected at position :$index Command ->$command");
+            throw new BadExpressionException("Literal or expression group () expected at position ->:$index Command ->$command");
+        }
+        $this->logger->debug('Left token', ['lexeme' => $leftToken->getLexeme(), 'position' => $leftToken->getPosition(), 'type' => $leftToken->getType(), 'command' => $command]);
+
+        $leftChild = $this->getNextExpression($leftToken, $command);
+
+        $newIndex = $this->tokenManager->skipSpaces($leftToken->getEndPosition() + 1, $command);
+        $nextToken = $this->tokenManager->getNextToken($command, $newIndex);
+        if (!$nextToken) {
+            throw new BadExpressionException("Operator expected at position ->: $newIndex Command ->$command");
         }
 
-        if ($leftToken->isLiteral()) {
-            $leftChild = new Expression($leftToken);
-        } elseif ($leftToken->isOpenBracket()) {
+        if (!($nextToken instanceof TokenOperator)) {
+            throw new BadExpressionException("Operator expected at position :" . $nextToken->getPosition() . PHP_EOL .
+                "Found token [" . $nextToken->getLexeme() . "] of type:" . get_class($nextToken) . PHP_EOL .
+                "Command ->$command"
+            );
+        }
+
+        $operator = $nextToken; //rename
+        $expression = new CompoundExpression($operator);
+
+        $newIndex = $this->tokenManager->skipSpaces($operator->getEndPosition() + 1, $command);
+        $rightToken = $this->tokenManager->getNextToken($command, $newIndex);
+        if (!$rightToken) {
+            throw new BadExpressionException("Literal or expression group () expected at position ->:$newIndex Command ->$command"
+            );
+        }
+
+        $rightChild = $this->getNextExpression($rightToken, $command);
+
+        $expression->setLeftExpression($leftChild);
+        $expression->setRightExpression($rightChild);
+        return $expression;
+    }
+
+    /**
+     * @param Token $leftToken
+     * @param string $command
+     * @return Expression
+     * @throws BadExpressionException
+     */
+    public function getNextExpression(Token $leftToken, string $command): ExpressionInterface
+    {
+        if ($leftToken instanceof TokenLiteral) {
+            $leftChild = new ExpressionLiteral($leftToken);
+        } elseif (($leftToken instanceof TokenBracket) && $leftToken->getLexeme() == TokenBracket::LEFT_BRACKET['LEXEME']) {
             $commandGroup = $this->getCommandGroup($leftToken, $command);
             $leftChild = $this->tokenize($commandGroup);
         } else {
@@ -61,63 +107,13 @@ class ExpressionManager
             );
         }
 
-        $nextToken = $this->tokenManager->getNextToken($command, $leftChild->getToken()->getEndPosition() + 1);
-        $operator = $this->skipSpaces($nextToken, $command);
-        if (!$operator) {
-            throw new BadExpressionException("Operator expected at position :".($leftChild->getToken()->getEndPosition() + 1)." Command ->$command");
-        }
-
-        if (!$operator->isOperator()) {
-            throw new BadExpressionException("Operator expected at position :" . $nextToken->getPosition() . PHP_EOL .
-                "Found token [" . $nextToken->getLexeme() . "] of type:" . $nextToken->getType() . PHP_EOL .
-                "Command ->$command"
-            );
-        }
-
-        $operator = $nextToken; //rename
-        $expression = new Expression($operator);
-
-        $rightOperand = $this->tokenManager->getNextToken($command, $operator->getEndPosition() + 1);
-        $rightToken = $this->skipSpaces($rightOperand, $command);
-        if (!$rightToken) {
-            throw new BadExpressionException("Literal or expression group () expected at position :" . $operator->getEndPosition() + 1 . PHP_EOL .
-                "Command ->$command"
-            );
-        }
-
-        if ($rightToken->isLiteral()) {
-            $rightChild = new Expression($rightToken);
-        } elseif ($rightToken->isOpenBracket()) {
-            $commandGroup = $this->getCommandGroup($rightToken, $command);
-            $rightChild = $this->tokenize($commandGroup);
-        } else {
-            throw new BadExpressionException("Literal or expression group () expected at position :" . $rightToken->getPosition() . PHP_EOL .
-                "Found token [" . $rightToken->getLexeme() . "] of type:" . $rightToken->getType() . PHP_EOL .
-                "Command ->$command"
-            );
-        }
-
-        $expression->setLeftExpression($leftChild);
-        $expression->setRightExpression($rightChild);
-        return $expression;
+        return $leftChild;
     }
 
     /**
      * @throws BadExpressionException
      */
-    private function skipSpaces(Token $token = null, string $command): ?Token
-    {
-        while ($token && $token->isSpace()) {
-            $token = $this->tokenManager->getNextToken($command, $token->getEndPosition() + 1);
-        }
-
-        return $token;
-    }
-
-    /**
-     * @throws BadExpressionException
-     */
-    private function getCommandGroup(Token $openBracket, string $command): string
+    private function getCommandGroup(TokenBracket $openBracket, string $command): string
     {
         $closingBracket = $this->tokenManager->getClosingBracket($openBracket, $command);
         $groupStartIndex = $openBracket->getPosition() + 1;

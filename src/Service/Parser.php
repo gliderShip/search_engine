@@ -2,43 +2,22 @@
 
 namespace App\Service;
 
-use App\Model\Token;
+use App\Model\Expression;
+use App\Model\ExpressionInterface;
+use App\Model\ExpressionLiteral;
+use App\Model\TokenInterface;
+use App\Model\TokenLiteral;
+use App\Model\TokenOperator;
+use http\Exception\BadMethodCallException;
 use Psr\Log\LoggerInterface;
 
 class Parser
 {
-    public const AND_OPERATOR = '&';
-    public const OR_OPERATOR = '|';
-    public const LEFT_BRACKET_OPERATOR = '(';
-    public const RIGHT_BRACKET_OPERATOR = ')';
-    public const EXPRESSION_DELIMITERS = [
-        ' '//space
-    ];
+    private DocumentManager $documentManager;
 
-    public const OPERATORS = [
-        self::AND_OPERATOR,
-        self::OR_OPERATOR,
-        self::LEFT_BRACKET_OPERATOR,
-        self::RIGHT_BRACKET_OPERATOR
-    ];
+    private ExpressionManager $expressionService;
 
-    public const LEXEMES = self::EXPRESSION_DELIMITERS + self::OPERATORS;
-
-
-    /**
-     * @var DocumentManager
-     */
-    private $documentManager;
-
-    /**
-     * @var ExpressionManager
-     */
-    private $expressionService;
-
-    /**
-     * @var LoggerInterface
-     */
-    private $logger;
+    private LoggerInterface $logger;
 
 
     public function __construct(DocumentManager $documentManager, ExpressionManager $expressionService, LoggerInterface $logger)
@@ -48,93 +27,57 @@ class Parser
         $this->expressionService = $expressionService;
     }
 
-    private function evaluate($expression)
+    /**
+     * @throws \App\Exception\BadExpressionException
+     */
+    public function parse($command)
     {
-        $expressionModel  = $this->expressionService->tokenize($expression);
-        if ($this->isTerm($expression)) {
-            return $this->documentManager->findByToken($expression);
-        }
+        $expression = $this->expressionService->tokenize($command);
+        $this->logger->debug("Parsing Command ->:".$command);
 
-        dd($this->tokenize($expression));
-        $leftArgument = $this->getLeftArgument($expression);
-        $leftValue = $this->evaluate($leftArgument);
-
-        $operator = $this->getOperator($expression);
-
-        $rightArgument = $this->getRightArgument($expression);
-        $rightValue = $this->evaluate($rightArgument);
-
-        switch ($operator) {
-            case self::AND_OPERATOR:
-                return $this->documentManager->getDocumentsContainingAll($leftValue + $rightValue);
-            case self::OR_OPERATOR:
-                return $this->documentManager->getDocumentsContainingAny($leftValue + $rightValue);
+        if ($expression) {
+            $value = $this->evaluateExpression($expression);
+            $this->logger->debug("Value ->:".$value);
         }
     }
 
-    private function isTerm($expression)
+    private function evaluateExpression(ExpressionInterface $expression)
     {
-        if (ctype_alnum($expression)) {
-            return true;
+        if($expression instanceof ExpressionLiteral){
+            return $this->evaluateLiteral($expression);
         }
+
+        $leftExpression = $this->evaluateExpression($expression->getLeftExpression());
+        $rightExpression = $this->evaluateExpression($expression->getRightExpression());
+        if($leftExpression instanceof ExpressionLiteral and $rightExpression instanceof ExpressionLiteral){
+            return $this->evaluateSimpleExpression($expression);
+        }
+
+
+
 
     }
 
-    public function tokenize(string $expression)
+    private function evaluateLiteral(ExpressionLiteral $literal)
     {
-        $expression =
-        if(empty($expression)){
-            return null;
-        }
-
-        if($this->isTerm($expression)){
-            $token = new Token();
-            $token->setLexeme($expression);
-            $token->setType(Token::TYPE_LITERAL);
-            return $token;
-        }
-
-        $length = strlen($expression);
-        $token = getNextToken($expression);
-
-
-//        $tokensList = implode('', self::LEXEMES);
-//        $lexemes = strtok($expression, $tokensList);
-//        dd($lexemes);
-//        $firstChar = $expression[0];
-//        if(ctype_alnum($firstChar)){
-//            $term =
-//        }
-//        $expression = trim($expression);
-//
-//        $pattern = implode("", self::OPERATORS);
-//        $this->logger->debug("Pattern:". $pattern);
-//
-//        $escapedPattern = '['.preg_quote($pattern).']';
-//        $this->logger->debug("Escaped Pattern:". $escapedPattern);
-//
-////        $tokens = preg_split("/$escapedPattern/", $expression, -1, PREG_SPLIT_OFFSET_CAPTURE|PREG_SPLIT_DELIM_CAPTURE);
-//        $tokens = [];
-//        $result = preg_match_all("/$escapedPattern/", $expression, $tokens);
-//        $this->logger->debug("Tokens", $tokens);
-//
-//        return $tokens;
-        return explode(' ', $expression);
-
+        return $literal->getToken()->getLexeme();
     }
 
-
-    private function getNextToken(string $expression){
-        if(empty($expression)){
-            return null;
+    private function evaluateSimpleExpression(ExpressionInterface $expression)
+    {
+        $leftExpression = $expression->getLeftExpression();
+        if($leftExpression instanceof ExpressionLiteral){
+            throw new BadMethodCallException($leftExpression->getToken()->getLexeme(). 'is not a literal');
         }
 
-        $firstChar = $expression[0];
-        switch ()
-        if(in_array($firstChar, self::OPERATORS){
-            $token = new Token($firstChar, Token::)
+        $rightExpression = $expression->getRightExpression();
+        if($rightExpression instanceof ExpressionLiteral){
+            throw new BadMethodCallException($rightExpression->getToken()->getLexeme(). 'is not a literal');
         }
 
+        $operator = $expression->getToken();
+
+        $this->logger->debug($leftExpression->getToken()->getLexeme()." -- ".$operator->getLexeme()." -- ".$rightExpression->getToken()->getLexeme());
     }
 
 

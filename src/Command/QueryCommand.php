@@ -66,7 +66,7 @@ class QueryCommand extends ConsoleCommand
         $strQuery = implode(' ', $query);
         $this->logger->debug('Query: ', ['query' => $query, 'str_query' => $strQuery]);
 
-        $ast = $this->parser->tokenize($strQuery);
+        $ast = $this->parser->parse($strQuery);
         dump($ast);
 //        $documents = $this->documentManager->getDocumentsContainingAny($query);
 //        $documents = $this->documentManager->getDocumentsContainingAll($query);

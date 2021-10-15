@@ -4,22 +4,26 @@ namespace App\Service;
 
 use App\Exception\BadExpressionException;
 use App\Model\Token;
+use App\Model\TokenBracket;
+use App\Model\TokenInterface;
+use App\Model\TokenLiteral;
+use App\Model\TokenOperator;
+use App\Model\TokenSpace;
 use http\Exception\BadMethodCallException;
 
 class TokenManager
 {
-
     /**
      * @throws BadExpressionException
      */
-    public function getClosingBracket(?Token $token, string $command): Token
+    public function getClosingBracket(?Token $token, string $command): TokenBracket
     {
-        if ($token->getType() != Token::LEFT_BRACKET_LEXEME) {
-            throw new BadMethodCallException("Can not find matching closed bracket for token type: " . $token->getType());
+        if (!($token instanceof TokenBracket) || ($token->getLexeme() != TokenBracket::LEFT_BRACKET['LEXEME'])) {
+            throw new BadMethodCallException("Can not find matching closed bracket for token: " . $token->getType(). " lexeme->[".$token->getLexeme()."]");
         }
 
         $closingBracketPosition = $this->getClosingBracketPosition($command, $token->getPosition());
-        return new Token(Token::RIGHT_BRACKET_LEXEME, Token::RIGHT_BRACKET_LEXEME, $closingBracketPosition);
+        return new TokenBracket(TokenBracket::LEFT_BRACKET['LEXEME'], $closingBracketPosition);
     }
 
     /**
@@ -27,7 +31,7 @@ class TokenManager
      */
     private function getClosingBracketPosition(string $command, int $openBracketPosition): int
     {
-        if ($command[$openBracketPosition] !== Token::LEFT_BRACKET_LEXEME) {
+        if ($command[$openBracketPosition] !== TokenBracket::LEFT_BRACKET['LEXEME']) {
             throw new \BadMethodCallException("Command $command does not contain an open bracket at position $openBracketPosition");
         }
 
@@ -35,13 +39,13 @@ class TokenManager
         for ($i = $openBracketPosition; $i < strlen($command); ++$i) {
             $char = $command[$i];
             switch ($char) {
-                case Token::RIGHT_BRACKET_LEXEME;
+                case TokenBracket::RIGHT_BRACKET['LEXEME'];
                     $stack->pop();
                     if ($stack->isEmpty()) {
                         return $i;
                     }
                     break;
-                case Token::LEFT_BRACKET_LEXEME:
+                case TokenBracket::LEFT_BRACKET['LEXEME']:
                     $stack->push($char);
                     break;
                 default:
@@ -79,7 +83,7 @@ class TokenManager
     /**
      * @throws BadExpressionException
      */
-    public function getNextToken(string $command = null, int $index = 0): ?Token
+    public function getNextToken(string $command = null, int $index = 0): ?TokenInterface
     {
         $subcommand = substr($command, $index);
         if (empty($subcommand)) {
@@ -93,13 +97,13 @@ class TokenManager
             throw new BadExpressionException("Invalid character [$firstChar] at position:$index" . PHP_EOL . "Command ->:$command");
         }
 
-        if ($type == Token::TYPE_LITERAL) {
+        if ($type == TokenLiteral::class) {
             $lexeme = $this->getNextLexemeLiteral($subcommand);
         } else {
             $lexeme = $firstChar;
         }
 
-        $token = new Token($lexeme, $index, $type);
+        $token = new $type($lexeme, $index);
         return $token;
     }
 
@@ -109,35 +113,46 @@ class TokenManager
      */
     public function getLexemeTokenType(string $lexeme): ?string
     {
-        if (in_array($lexeme, Token::BRACKETS)) {
-            return Token::TYPE_BRACKET;
-        } elseif (in_array($lexeme, Token::EXPRESSION_DELIMITERS)) {
-            return Token::TYPE_SPACE;
-        } elseif (in_array($lexeme, Token::OPERATORS)) {
-            return Token::TYPE_OPERATOR;
-        } elseif (!empty($lexeme) && ctype_alnum($lexeme)) {
-            return Token::TYPE_LITERAL;
+        if (TokenBracket::isValidLexeme($lexeme)) {
+            return TokenBracket::class;
+        } elseif (TokenSpace::isValidLexeme($lexeme)) {
+            return TokenSpace::class;
+        } elseif (TokenOperator::isValidLexeme($lexeme)) {
+            return TokenOperator::class;
+        } elseif (!empty($lexeme) && TokenLiteral::isValidLexeme($lexeme)) {
+            return TokenLiteral::class;
         }
 
         return null;
     }
 
-    public function getNextLexemeLiteral($command, $index = 0): string
+    public function getNextLexemeLiteral(?string $command, $index = 0): string
     {
         $lexeme = null;
-        while (ctype_alnum($command[$index])) {
+        while (isset($command[$index]) && ctype_alnum($command[$index])) {
             $lexeme .= $command[$index++];
         }
 
         return $lexeme;
     }
 
+    public function skipSpaces(int $index, string $command): int
+    {
+        $spaces = TokenSpace::EXPRESSION_DELIMITERS;
+
+        while (in_array(substr($command, $index, 1), $spaces)) {
+            ++$index;
+        }
+
+        return $index;
+    }
+
     /**
      * @throws BadExpressionException
      */
-    public function getOperatorRightLiteral(Token $operator, string $command): Token
+    public function getOperatorRightLiteral(TokenInterface $operator, string $command): TokenInterface
     {
-        if ($operator->getType() != Token::TYPE_OPERATOR) {
+        if ($operator->getType() != TokenInterface::TYPE_OPERATOR) {
             throw new \BadMethodCallException("Unsupported Token type ->:" . $operator->getType());
         }
 
