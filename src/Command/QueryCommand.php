@@ -3,7 +3,7 @@
 namespace App\Command;
 
 use App\Service\DocumentManager;
-use App\Service\Parser;
+use App\Service\Compiler;
 use App\Validator\IndexArgumentsValidator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -18,9 +18,9 @@ class QueryCommand extends ConsoleCommand
     protected static $defaultDescription = 'Add a short description for your command';
 
     /**
-     * @var Parser
+     * @var Compiler
      */
-    private $parser;
+    private $compiler;
 
     /**
      * @var ValidatorInterface
@@ -42,10 +42,10 @@ class QueryCommand extends ConsoleCommand
     private $logger;
 
 
-    public function __construct(string $name = null, Parser $parser, DocumentManager $documentManager, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, LoggerInterface $logger)
+    public function __construct(string $name = null, Compiler $compiler, DocumentManager $documentManager, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, LoggerInterface $logger)
     {
         parent::__construct($name);
-        $this->parser = $parser;
+        $this->compiler = $compiler;
         $this->validator = $validator;
         $this->indexArgumentsValidator = $indexArgumentsValidator;
         $this->documentManager = $documentManager;
@@ -66,7 +66,7 @@ class QueryCommand extends ConsoleCommand
         $strQuery = implode(' ', $query);
         $this->logger->debug('Query: ', ['query' => $query, 'str_query' => $strQuery]);
 
-        $ast = $this->parser->parse($strQuery);
+        $ast = $this->compiler->execute($strQuery);
         dump($ast);
 //        $documents = $this->documentManager->getDocumentsContainingAny($query);
 //        $documents = $this->documentManager->getDocumentsContainingAll($query);

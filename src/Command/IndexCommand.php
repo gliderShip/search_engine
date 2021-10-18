@@ -7,6 +7,7 @@ use App\Exception\ConsoleArgumentException;
 use App\Exception\IndexException;
 use App\Service\DocumentManager;
 use App\Validator\IndexArgumentsValidator;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -38,13 +39,16 @@ class IndexCommand extends ConsoleCommand
      */
     private $documentDto;
 
+    private LoggerInterface $logger;
 
-    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager)
+
+    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager, LoggerInterface $logger)
     {
         parent::__construct($name);
         $this->validator = $validator;
         $this->indexArgumentsValidator = $indexArgumentsValidator;
         $this->documentManager = $documentManager;
+        $this->logger = $logger;
     }
 
     protected function configure(): void
@@ -77,13 +81,12 @@ class IndexCommand extends ConsoleCommand
 
         $response = $this->documentManager->upsert($this->documentDto);
 
-        $keys = $this->documentManager->redis->keys('*');
-        dump($keys);
+        $keys = $this->documentManager->getStorageManager()->findAll();
+        $this->logger->debug(__METHOD__." Keys", $keys);
         foreach ($keys as $key) {
             dump($key);
-            dump($this->documentManager->redis->zrange($key, 0, -1));
+            $this->logger->debug("Key $key", ['content' => $this->documentManager->getStorageManager()->getEntityById($key)]);
         }
-
 
         $io->write('index ok ' . $this->documentDto->getId());
 

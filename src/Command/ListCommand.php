@@ -2,7 +2,7 @@
 
 namespace App\Command;
 
-use App\Service\DocumentManager;
+use App\Service\RedisManager;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -13,16 +13,16 @@ class ListCommand extends ConsoleCommand
     protected static $defaultDescription = 'Add a short description for your command';
 
     /**
-     * @var DocumentManager
+     * @var RedisManager
      */
-    private $documentManager;
+    private $redisManager;
 
 
-    public function __construct(string $name = null, DocumentManager $documentManager)
+    public function __construct(string $name = null, RedisManager $documentManager)
     {
         parent::__construct($name);
 
-        $this->documentManager = $documentManager;
+        $this->redisManager = $documentManager;
     }
 
 
@@ -35,9 +35,9 @@ class ListCommand extends ConsoleCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $allKeys = $this->documentManager->redis->keys('*');
-        $documents = $this->documentManager->redis->keys(DocumentManager::DOCUMENT_KEY . '*');
-        $tokens = $this->documentManager->redis->keys(DocumentManager::TOKEN_KEY . '*');
+        $allKeys = $this->redisManager->getRedis()->keys('*');
+        $documents = $this->redisManager->getRedis()->keys(RedisManager::DOCUMENTS_KEY . '*');
+        $tokens = $this->redisManager->getRedis()->keys(RedisManager::TOKENS_KEY . '*');
 
         $io->note('Documents');
         $io->writeln($documents);
@@ -51,7 +51,7 @@ class ListCommand extends ConsoleCommand
         $io->title('Document Details');
         foreach ($documents as $document) {
             $io->note("Document ID -> $document");
-            $documentContent = $this->documentManager->redis->zrange($document, 0, -1);
+            $documentContent = $this->redisManager->getRedis()->zrange($document, 0, -1);
             $io->writeln($documentContent);
 
         }
@@ -59,7 +59,7 @@ class ListCommand extends ConsoleCommand
         $io->title('Token Details');
         foreach ($tokens as $token) {
             $io->note("Token ID -> $token");
-            $tokenContent = $this->documentManager->redis->zrange($token, 0, -1);
+            $tokenContent = $this->redisManager->getRedis()->zrange($token, 0, -1);
             $io->writeln($tokenContent);
 
         }
