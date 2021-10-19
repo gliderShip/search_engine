@@ -22,7 +22,7 @@ class LexicalAnalyzer
             throw new BadMethodCallException("Can not find matching closed bracket for token: " . $token->getType() . " lexeme->[" . $token->getLexeme() . "]");
         }
 
-        $closingBracketPosition = $this->getClosingBracketPosition($command, $token->getPosition());
+        $closingBracketPosition = $this->getClosingBracketPosition($command, $token->getStartPosition());
         return new TokenBracket(TokenBracket::LEFT_BRACKET['LEXEME'], $closingBracketPosition);
     }
 

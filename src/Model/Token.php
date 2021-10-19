@@ -48,7 +48,7 @@ abstract class Token
     /**
      * @return int
      */
-    public function getPosition(): int
+    public function getStartPosition(): int
     {
         return $this->position;
     }

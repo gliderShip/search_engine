@@ -131,11 +131,11 @@ class RedisManager implements DocumentManager
         return new CollectionDto($id, $content);
     }
 
-    private function removeFromInvertedIndex($documentId, ?array $tokens)
+    private function removeFromInvertedIndex($documentDbId, ?array $tokens)
     {
-        foreach ($tokens as $term) {
+        foreach ($tokens as $term => $score) {
             $termDbKey = $this->getKeywordDbKey($term);
-            $this->redis->zrem($termDbKey, $documentId);
+            $this->redis->zrem($termDbKey, $documentDbId);
         }
     }
 

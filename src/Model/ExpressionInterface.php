@@ -4,7 +4,7 @@ namespace App\Model;
 
 interface ExpressionInterface
 {
-    public function __construct(TokenInterface $token);
+    public function __construct(TokenInterface $token, int $startStartIndex, int $endIndex);
 
     public function getToken(): TokenInterface;
 
@@ -13,4 +13,13 @@ interface ExpressionInterface
     public function getLeftExpression(): ?ExpressionInterface;
 
     public function getRightExpression(): ?ExpressionInterface;
+
+    public function getEndIndex(): int;
+
+    public function setStartIndex(int $startIndex);
+
+    public function setEndIndex(int $endIndex);
+
+
+
 }

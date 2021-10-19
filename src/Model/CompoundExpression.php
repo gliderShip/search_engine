@@ -4,25 +4,30 @@ namespace App\Model;
 
 class CompoundExpression implements ExpressionInterface
 {
-    /**
-     * @var TokenOperator $operator
-     */
+    private int $startIndex;
+
+    private int $endIndex;
+
     private TokenOperator $operator;
 
     private ExpressionInterface $leftExpression;
 
     private ExpressionInterface $rightExpression;
 
+
     /**
      * @param Token $token
      */
-    public function __construct(TokenInterface $token)
+    public function __construct(TokenInterface $token, int $startIndex = 0, int $endIndex = null)
     {
         if (!($token instanceof TokenOperator)) {
             throw new \BadMethodCallException("CompoundExpression requires a TokenOperator. Provided ->:" . get_class($token));
         }
 
         $this->operator = $token;
+        $this->startIndex = $startIndex;
+        $this->endIndex = $endIndex;
+
     }
 
     /**
@@ -76,4 +81,21 @@ class CompoundExpression implements ExpressionInterface
     {
         $this->rightExpression = $rightExpression;
     }
+
+    public function getEndIndex(): int
+    {
+        return $this->endIndex;
+    }
+
+    public function setStartIndex(int $startIndex)
+    {
+        $this->startIndex = $startIndex;
+    }
+
+    public function setEndIndex(int $endIndex)
+    {
+        $this->endIndex = $endIndex;
+    }
+
+
 }

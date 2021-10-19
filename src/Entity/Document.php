@@ -14,9 +14,9 @@ class Document
     /**
      * @ORM\Id
      * @ORM\GeneratedValue
-     * @ORM\Column(type="integer")
+     * @ORM\Column(type="string")
      */
-    private int $dbId;
+    private string $dbId;
 
     /**
      *  @Assert\Type(type="int", message="doc-id must be a positive integer")
@@ -44,14 +44,14 @@ class Document
      * @param $id
      * @param array $tokens
      */
-    public function __construct(int $dbId, int $id, array $tokens)
+    public function __construct(string $dbId, int $id, array $tokens)
     {
         $this->dbId = $dbId;
         $this->id = $id;
         $this->tokens = $tokens;
     }
 
-    public function getDbId(): ?int
+    public function getDbId(): ?string
     {
         return $this->dbId;
     }
