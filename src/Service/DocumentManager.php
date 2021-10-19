@@ -2,64 +2,38 @@
 
 namespace App\Service;
 
+use App\DTO\CollectionDto;
 use App\DTO\DocumentDto;
-use App\Model\StorageInterface;
-use App\Model\TokenOperator;
+use App\Entity\Collection;
+use App\Entity\Document;
 
-class DocumentManager
+interface DocumentManager
 {
-    private StorageInterface $storageManager;
-
-    public function __construct(StorageInterface $storage)
-    {
-        $this->storageManager = $storage;
-    }
+    /**
+     * @param DocumentDto $documentDto
+     * @return string The storage document Id.
+     */
+    public function upsert(DocumentDto $documentDto): Document;
 
     /**
-     * @return StorageInterface
+     * @param $keyword
+     * Return a collection containing the document Ids of the matched documents
      */
-    public function getStorageManager(): StorageInterface
-    {
-        return $this->storageManager;
-    }
+    public function getDocumentsByKeyword($keyword): Collection;
 
-    public function upsert(DocumentDto $documentDto): array
-    {
-        $dbId = $this->storageManager->upsert($documentDto);
-        return $this->storageManager->getDocumentById($dbId);
-    }
+    public function getDocumentsContainingAny(array $keywords): Collection;
 
-    public function getByDbId($dbId): array
-    {
-        return $this->storageManager->getDocumentById($dbId);
-    }
+    public function getCommonDocuments(array $collectionArray): Collection;
 
-    public function findByToken($token): string
-    {
-        return $this->storageManager->findByToken($token);
-    }
+    public function getAllDocuments(array $collectionArray): Collection;
 
-    public function getByToken($token): array
-    {
-        return $this->storageManager->getByToken($token);
-    }
+    public function getDocumentsContainingAll(array $keywords): Collection;
 
-    public function executeBinaryOperation(string $leftLiteral, TokenOperator $operator, string $rightLiteral): string
-    {
-        $operation = $operator->getLexeme();
-        switch ($operation) {
-            case TokenOperator::AND_OPERATOR['LEXEME']:
-                $result = $this->storageManager->findDocumentsContainingAll([$leftLiteral, $rightLiteral]);
-                break;
-            case TokenOperator::OR_OPERATOR['LEXEME']:
-                $result = $this->storageManager->findDocumentsContainingAny([$leftLiteral, $rightLiteral]);
-                break;
-            default:
-                throw new \BadMethodCallException("Unsupported operation ->:" . $operation);
-        }
+    public function computeUnion(array $setsKeys): string;
 
-        return $result;
-    }
+    public function computeIntersection(array $setsKeys): string;
+
+    public function getCollectionDto(Collection $collection): CollectionDto;
 
 
 }

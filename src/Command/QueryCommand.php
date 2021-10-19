@@ -2,8 +2,8 @@
 
 namespace App\Command;
 
-use App\Service\DocumentManager;
 use App\Service\Compiler;
+use App\Service\DocumentManager;
 use App\Validator\IndexArgumentsValidator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -66,18 +66,15 @@ class QueryCommand extends ConsoleCommand
         $strQuery = implode(' ', $query);
         $this->logger->debug('Query: ', ['query' => $query, 'str_query' => $strQuery]);
 
-        $ast = $this->compiler->execute($strQuery);
-        dump($ast);
-//        $documents = $this->documentManager->getDocumentsContainingAny($query);
-//        $documents = $this->documentManager->getDocumentsContainingAll($query);
-//        $documents = $this->documentManager->findByToken($query);
-//        dump($documents);
-//        dd('the end');
-//
-//
-//        $io->success('You have a new command! Now make it your own! Pass --help to see your options.');
+        $documentCollection = $this->compiler->execute($strQuery);
+        $this->logger->debug(__METHOD__ . '  Result', ["result" => $documentCollection]);
+        $scoredDocuments = $documentCollection->getContent();
+        $documentIds = array_keys($scoredDocuments);
+        $document_list = implode(' ', $documentIds);
 
-        return 0;
+        $io->write("query results " . $document_list);
+
+        return self::CONSOLE_SUCCESS;
     }
 
 

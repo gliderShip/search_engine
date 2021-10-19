@@ -16,14 +16,14 @@ class Document
      * @ORM\GeneratedValue
      * @ORM\Column(type="integer")
      */
-    private $dbId;
+    private int $dbId;
 
     /**
      *  @Assert\Type(type="int", message="doc-id must be a positive integer")
      * @Assert\NotNull(message="please provide the doc-id")
      * @ORM\Column(type="integer")
      */
-    private $id;
+    private int $id;
 
     /**
      * @ORM\Column(type="array")
@@ -37,7 +37,19 @@ class Document
      *      @Assert\Type(type="alnum", message="tokens must be alfanumeric strings")
      * })
      */
-    private $tokens = [];
+    private array $tokens = [];
+
+    /**
+     * @param $dbId
+     * @param $id
+     * @param array $tokens
+     */
+    public function __construct(int $dbId, int $id, array $tokens)
+    {
+        $this->dbId = $dbId;
+        $this->id = $id;
+        $this->tokens = $tokens;
+    }
 
     public function getDbId(): ?int
     {
@@ -49,22 +61,11 @@ class Document
         return $this->id;
     }
 
-    public function setId(int $id): self
-    {
-        $this->id = $id;
-
-        return $this;
-    }
 
     public function getTokens(): ?array
     {
         return $this->tokens;
     }
 
-    public function setTokens(array $tokens): self
-    {
-        $this->tokens = $tokens;
 
-        return $this;
-    }
 }

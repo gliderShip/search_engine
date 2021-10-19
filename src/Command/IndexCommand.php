@@ -6,6 +6,7 @@ use App\DTO\DocumentDto;
 use App\Exception\ConsoleArgumentException;
 use App\Exception\IndexException;
 use App\Service\DocumentManager;
+use App\Service\RedisManager;
 use App\Validator\IndexArgumentsValidator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -19,36 +20,30 @@ class IndexCommand extends ConsoleCommand
     protected static $defaultName = 'index';
     protected static $defaultDescription = 'Add a short description for your command';
 
-    /**
-     * @var ValidatorInterface
-     */
-    private $validator;
+    private ValidatorInterface $validator;
 
-    /**
-     * @var IndexArgumentsValidator
-     */
-    private $indexArgumentsValidator;
+    private IndexArgumentsValidator $indexArgumentsValidator;
 
-    /**
-     * @var DocumentManager
-     */
-    private $documentManager;
+    private DocumentManager $documentManager;
 
-    /**
-     * @var DocumentDto
-     */
-    private $documentDto;
+    private DocumentDto $documentDto;
 
     private LoggerInterface $logger;
 
+    /**
+     * Remove after debugging
+     */
+    private RedisManager $redisManager;
 
-    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager, LoggerInterface $logger)
+
+    public function __construct(string $name = null, ValidatorInterface $validator, IndexArgumentsValidator $indexArgumentsValidator, DocumentManager $documentManager, LoggerInterface $logger, RedisManager $redisManager)
     {
         parent::__construct($name);
         $this->validator = $validator;
         $this->indexArgumentsValidator = $indexArgumentsValidator;
         $this->documentManager = $documentManager;
         $this->logger = $logger;
+        $this->redisManager = $redisManager;
     }
 
     protected function configure(): void
@@ -79,16 +74,11 @@ class IndexCommand extends ConsoleCommand
             return self::INDEX_ERROR;
         }
 
-        $response = $this->documentManager->upsert($this->documentDto);
+        $document = $this->documentManager->upsert($this->documentDto);
 
-        $keys = $this->documentManager->getStorageManager()->findAll();
-        $this->logger->debug(__METHOD__." Keys", $keys);
-        foreach ($keys as $key) {
-            dump($key);
-            $this->logger->debug("Key $key", ['content' => $this->documentManager->getStorageManager()->getEntityById($key)]);
-        }
+        $this->logger->debug(__METHOD__." Document ".$document->getId(), ['redis ID' => $document->getDbId(), 'content' => $this->redisManager->getSortedSetById($document->getDbId())]);
 
-        $io->write('index ok ' . $this->documentDto->getId());
+        $io->write('index ok ' . $document->getId());
 
         return self::CONSOLE_SUCCESS;
     }
