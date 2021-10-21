@@ -73,7 +73,7 @@ set :assets_install_path, "public"
 set :assets_install_flags,  '--symlink'
 
 set :linked_files, ['.env']
-set :linked_dirs, ["var/log", "public/uploads/dms"]
+set :linked_dirs, ["var/log", "public/uploads"]
 
 # Set correct permissions between releases, this is turned off by default
 set :file_permissions_paths, ["var", "public/uploads"]
@@ -92,65 +92,6 @@ set :default_env, {
 }
 
 
-# reload database with fixtures
-namespace :deploy do
-  desc "DROP DATABASE SCHEMA"
-  task :drop_schema do
-    on roles(:db) do
-      invoke 'symfony:console', :'doctrine:schema:drop --force'
-    end
-  end
-end
-
-# reload database with fixtures
-namespace :deploy do
-  desc "UPDATE DATABASE SCHEMA"
-  task :update_schema do
-    on roles(:db) do
-      invoke 'symfony:console', :'doctrine:schema:update --force'
-#       symfony_console('hautelook:fixtures:load', '--purge-with-truncate')
-    end
-  end
-end
-
-# reload database with fixtures
-namespace :deploy do
-  desc "DESTROY DATABASE AND RELOAD FIXTURES"
-  task :load_fixtures do
-    on roles(:db) do
-      invoke 'symfony:console', :'hautelook:fixtures:load --purge-with-truncate'
-#       symfony_console('hautelook:fixtures:load', '--purge-with-truncate')
-    end
-  end
-end
-
-# append doctrine fixtures
-namespace :deploy do
-  desc "APPEND DOCTRINE FIXTURES"
-  task :append_doctrine_fixtures do
-    on roles(:db) do
-      invoke 'symfony:console', :'d:f:l --append'
-    end
-  end
-end
-
-namespace :deploy do
-  desc "INSTALL CKEDITOR"
-  task :install_ckeditor do
-    on roles(:db) do
-      invoke 'symfony:console', :'ckeditor:install --clear=drop --no-progress-bar'
-    end
-  end
-end
-
-namespace :deploy do
-  desc "REGENRATE ASSETS"
-  task :regenerate_assets do
-    on roles(:db) do
-      invoke 'symfony:console', :'assets:install --symlink'
-    end
-  end
-end
 
 #DROP DATABASE SCHEMA
 #after 'deploy:published', 'deploy:drop_schema'
