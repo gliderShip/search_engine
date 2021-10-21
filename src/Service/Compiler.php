@@ -42,7 +42,7 @@ class Compiler
             $collectionDto = $this->documentManager->getCollectionDto($documentCollection);
 
             $this->logger->debug(__METHOD__ . '  Result', [$documentCollection]);
-        } else{
+        } else {
             throw new \Exception("Unexpected error occurred while parsing command ->:$command");
         }
 
