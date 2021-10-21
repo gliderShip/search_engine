@@ -13,6 +13,7 @@ class Collection
 {
 
     /**
+     * @ORM\Id
      *  @Assert\Type(type="string", message="collection-id must be a string")
      * @Assert\NotNull(message="please provide the collection-id")
      * @ORM\Column(type="string")
