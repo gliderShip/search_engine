@@ -63,7 +63,7 @@ class PandoraCommand extends ConsoleCommand
             $io->write($e->getMessage());
         }
 
-        return self::$returnCode;
+        return $returnCode;
     }
 
     private function validateCommand(string $userRequest): string
@@ -111,12 +111,16 @@ class PandoraCommand extends ConsoleCommand
 
         $arguments = $this->getUserRequestArguments(IndexCommand::getDefaultName(), $userRequest);
 
-        $arguments = [
+        if(count($arguments) < 2){
+            throw new ArgumentException($command, "Please provide the $command command arguments!");
+        }
+
+        $commandArguments = [
             'docId'  => array_shift($arguments),
-            'tokens'  => implode($arguments),
+            'tokens'  => $arguments,
         ];
 
-        $indexCommandInput = new ArrayInput($arguments);
+        $indexCommandInput = new ArrayInput($commandArguments);
         try {
             $returnCode = $indexCommand->run($indexCommandInput, $output);
         } catch (\Exception $e) {
@@ -126,9 +130,29 @@ class PandoraCommand extends ConsoleCommand
         return $returnCode;
     }
 
-    private function queryDocuments(string $command, string $userRequest): string
+    private function queryDocuments(string $command, string $userRequest, OutputInterface $output): string
     {
         $queryCommand = $this->getApplication()->find(QueryCommand::getDefaultName());
+
+        $arguments = $this->getUserRequestArguments(QueryCommand::getDefaultName(), $userRequest);
+
+        if(empty($arguments) || empty($arguments[0])){
+            throw new ArgumentException($command, "Please provide the $command command arguments!");
+        }
+
+        $commandArguments = [
+            'expression'  => $arguments,
+        ];
+        dump($commandArguments);
+
+        $queryCommandInput = new ArrayInput($commandArguments);
+        try {
+            $returnCode = $queryCommand->run($queryCommandInput, $output);
+        } catch (\Exception $e) {
+            throw new CommandException(QueryCommand::getDefaultName(), $e->getMessage());
+        }
+
+        return $returnCode;
     }
 
     /**
@@ -139,7 +163,7 @@ class PandoraCommand extends ConsoleCommand
         $argumentsString =  substr(strstr($userRequest," "), 1);
         $arguments = explode(' ', $argumentsString);
 
-        if(count($arguments) < 2){
+        if(count($arguments) < 1){
             throw new ArgumentException($command, "Please provide the $command command arguments!");
         }
 
