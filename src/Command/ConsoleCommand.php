@@ -14,4 +14,5 @@ abstract class ConsoleCommand extends Command
     public const CONSOLE_SUCCESS = 0;
     public const CONSOLE_ARGUMENT_ERROR = 1;
     public const INDEX_ERROR = 2;
+    public const PANDORA_ERROR = 3;
 }

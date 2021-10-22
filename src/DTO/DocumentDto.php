@@ -14,7 +14,6 @@ class DocumentDto
     private $id;
 
     /**
-     * @var array
      * @Assert\NotNull(message="You must specify at least one token")
      * @Assert\Count(
      *      min = 1,
@@ -31,7 +30,7 @@ class DocumentDto
      * @param int $id
      * @param array $tokens
      */
-    public function __construct($id = null, $tokens = null)
+    public function __construct($id = null, array $tokens = null)
     {
         if(is_numeric($id)){
             $this->id = intval($id);

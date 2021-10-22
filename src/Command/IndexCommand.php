@@ -4,6 +4,7 @@ namespace App\Command;
 
 use App\DTO\DocumentDto;
 use App\Exception\ConsoleArgumentException;
+use App\Exception\ConsoleException;
 use App\Exception\IndexException;
 use App\Service\DocumentManager;
 use App\Service\RedisManager;
@@ -69,12 +70,11 @@ class IndexCommand extends ConsoleCommand
 
         try {
             $this->indexArgumentsValidator->validate($this->documentDto);
-        } catch (IndexException $e) {
+            $document = $this->documentManager->upsert($this->documentDto);
+        } catch (ConsoleException $e) {
             $io->write($e->getMessage());
             return self::INDEX_ERROR;
         }
-
-        $document = $this->documentManager->upsert($this->documentDto);
 
         $this->logger->debug(__METHOD__." Document ".$document->getId(), ['redis ID' => $document->getDbId(), 'content' => $this->redisManager->getSortedSetById($document->getDbId())]);
 

@@ -4,9 +4,9 @@ namespace App\Exception;
 
 use Throwable;
 
-class ArgumentException extends ConsoleException
+class CommandException extends ConsoleException
 {
-    public function __construct(string $command = '', $message = "", $code = 0, Throwable $previous = null)
+    public function __construct(string $command = "", string $message = "", int $code = 0, Throwable $previous = null)
     {
         $message = "$command error : $message";
 
