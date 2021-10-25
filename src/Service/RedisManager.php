@@ -46,19 +46,48 @@ class RedisManager implements DocumentManager
 
         $dbId = $this->getDocumentDbKey($documentId);
 
-        $previousContent = $this->redis->zrange($dbId, 0, -1, ['withscores' => TRUE]);
+        $previousContent = $this->redis->lrange($dbId, 0, -1);
         $this->removeFromInvertedIndex($dbId, $previousContent);
         $this->redis->del($dbId);
-        $this->redis->zadd($dbId, array_flip($tokens));
+        $this->redis->rpush($dbId, $tokens);
         $this->createInvertedIndex($dbId, $tokens);
 
         $document = new Document($dbId, $documentId, $tokens);
         return $document;
     }
 
-    public function getSortedSetById(string $dbId): array
+    private function getDocumentDbKey(string $documentId): string
     {
-        return $this->redis->zrange($dbId, 0, -1, ['withscores' => TRUE]);
+        return self::DOCUMENTS_KEY . $documentId;
+    }
+
+    private function removeFromInvertedIndex($documentDbId, ?array $tokens)
+    {
+        foreach ($tokens as $term) {
+            $termDbKey = $this->getKeywordDbKey($term);
+            $this->redis->zrem($termDbKey, $documentDbId);
+        }
+    }
+
+    private function getKeywordDbKey(string $keywordId): string
+    {
+        return self::TOKENS_KEY . $keywordId;
+    }
+
+    private function createInvertedIndex(string $documentId, array $tokens)
+    {
+        foreach ($tokens as $term) {
+            $termDbKey = $this->getKeywordDbKey($term);
+            $termFrequency = $this->redis->zscore($termDbKey, $documentId);
+            $score = $termFrequency ? $termFrequency + 1 : 1;
+
+            $this->redis->zadd($termDbKey, [$documentId => $score]);
+        }
+    }
+
+    public function getListById(string $dbId): array
+    {
+        return $this->redis->lrange($dbId, 0, -1);
     }
 
     public function getDocumentById(string $dbId): Document
@@ -68,6 +97,15 @@ class RedisManager implements DocumentManager
 
         $document = new Document($dbId, $documentId, $content);
         return $document;
+    }
+
+    private function getDocumentId(string $documentDbKey)
+    {
+        if (substr($documentDbKey, 0, strlen(self::DOCUMENTS_KEY)) != self::DOCUMENTS_KEY) {
+            throw new \BadMethodCallException("Invalid database id ->:$documentDbKey for redis storage");
+        }
+
+        return substr($documentDbKey, strlen(self::DOCUMENTS_KEY));
     }
 
     public function getDocumentsByKeyword($keyword): Collection
@@ -87,26 +125,86 @@ class RedisManager implements DocumentManager
         return new Collection($collectionId, $documents);
     }
 
+    /**
+     * @param array $keywords
+     * @return Return the collection Id which hold the requested document Ids
+     */
+    private function findDocumentsContainingAll(array $keywords): string
+    {
+        $keywordIds = array_map([$this, 'getKeywordDbKey'], $keywords);
+        return $this->computeUnion($keywordIds);
+    }
+
+    public function computeUnion(array $setsKeys): string
+    {
+
+        $dbResultId = $this->generateCollectionCanonicalKey(self::UNION_KEY, $setsKeys);
+
+        if (!$this->redis->exists($dbResultId)) {
+            $this->redis->zunionstore($dbResultId, $setsKeys);
+            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE MISS");
+        } else {
+            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE HIT");
+        }
+
+        if (self::CACHE_TTL) {
+            $this->redis->expire($dbResultId, self::CACHE_TTL);
+        }
+
+        $this->logger->debug(__METHOD__ . " Result :=> $dbResultId");
+
+        return $dbResultId;
+    }
+
+    private function generateCollectionCanonicalKey(string $prefix, array $collectionItems): string
+    {
+
+        sort($collectionItems);
+        $item_list = implode('_', $collectionItems);
+        return $prefix . $item_list;
+
+    }
+
     public function getCommonDocuments(array $collectionArray): Collection
     {
         $setsKeys = [];
-        foreach ($collectionArray as $collection){
+        foreach ($collectionArray as $collection) {
             $setsKeys[] = $collection->getId();
         }
 
-        $commonDocumentsSetId =  $this->computeIntersection($setsKeys);
+        $commonDocumentsSetId = $this->computeIntersection($setsKeys);
         $documents = $this->redis->zrange($commonDocumentsSetId, 0, -1, ['withscores' => TRUE]);
         return new Collection($commonDocumentsSetId, $documents);
+    }
+
+    public function computeIntersection(array $setsKeys): string
+    {
+        $dbResultId = $this->generateCollectionCanonicalKey(self::INTERSECTION_KEY, $setsKeys);
+
+        if (!$this->redis->exists($dbResultId)) {
+            $this->redis->zinterstore($dbResultId, $setsKeys);
+            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE MISS");
+        } else {
+            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE HIT");
+        }
+
+        if (self::CACHE_TTL) {
+            $this->redis->expire($dbResultId, self::CACHE_TTL);
+        }
+
+        $this->logger->debug(__METHOD__ . " Result :=> $dbResultId");
+
+        return $dbResultId;
     }
 
     public function getAllDocuments(array $collectionArray): Collection
     {
         $setsKeys = [];
-        foreach ($collectionArray as $collection){
+        foreach ($collectionArray as $collection) {
             $setsKeys[] = $collection->getId();
         }
 
-        $allDocumentsSetId =  $this->computeUnion($setsKeys);
+        $allDocumentsSetId = $this->computeUnion($setsKeys);
         $documents = $this->redis->zrange($allDocumentsSetId, 0, -1, ['withscores' => TRUE]);
         return new Collection($allDocumentsSetId, $documents);
     }
@@ -119,47 +217,6 @@ class RedisManager implements DocumentManager
         return new Collection($collectionId, $documents);
     }
 
-    public function getCollectionDto(Collection $collection): CollectionDto
-    {
-        $id = $collection->getId();
-        $payload = $collection->getContent();
-        $content = [];
-        foreach ($payload as $key => $value){
-            $content[$this->getDocumentId($key)] = $value;
-        }
-
-        return new CollectionDto($id, $content);
-    }
-
-    private function removeFromInvertedIndex($documentDbId, ?array $tokens)
-    {
-        foreach ($tokens as $term => $score) {
-            $termDbKey = $this->getKeywordDbKey($term);
-            $this->redis->zrem($termDbKey, $documentDbId);
-        }
-    }
-
-    private function createInvertedIndex(string $documentId, array $tokens)
-    {
-        foreach ($tokens as $term) {
-            $termDbKey = $this->getKeywordDbKey($term);
-            $termFrequency = $this->redis->zscore($termDbKey, $documentId);
-            $score = $termFrequency ? $termFrequency + 1 : 1;
-
-            $this->redis->zadd($termDbKey, [$documentId => $score]);
-        }
-    }
-
-    /**
-     * @param array $keywords
-     * @return Return the collection Id which hold the requested document Ids
-     */
-    private function findDocumentsContainingAll(array $keywords): string
-    {
-        $keywordIds = array_map([$this, 'getKeywordDbKey'], $keywords);
-        return $this->computeUnion($keywordIds);
-    }
-
     /**
      * @param $keywords
      * @return Return the collection Id which hold the requested document Ids
@@ -170,64 +227,16 @@ class RedisManager implements DocumentManager
         return $this->computeUnion($keywordIds);
     }
 
-    public function computeUnion(array $setsKeys): string
+    public function getCollectionDto(Collection $collection): CollectionDto
     {
-        $dbResultId = $this->generateCollectionCanonicalKey(self::UNION_KEY, $setsKeys);
-
-        foreach ($setsKeys as $key) {
-            if (!$this->redis->exists($key)) {
-                throw new \BadMethodCallException("Set :-> $key not found!");
-            }
+        $id = $collection->getId();
+        $payload = $collection->getContent();
+        $content = [];
+        foreach ($payload as $key => $value) {
+            $content[$this->getDocumentId($key)] = $value;
         }
 
-        if(!$this->redis->exists($dbResultId)){
-            $this->redis->zunionstore($dbResultId, $setsKeys);
-            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE MISS");
-        } else{
-            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE HIT");
-        }
-
-        if(self::CACHE_TTL){
-            $this->redis->expire($dbResultId, self::CACHE_TTL);
-        }
-
-        $this->logger->debug(__METHOD__ . " Result :=> $dbResultId");
-
-        return $dbResultId;
-    }
-
-    public function computeIntersection(array $setsKeys): string
-    {
-        $dbResultId = $this->generateCollectionCanonicalKey(self::INTERSECTION_KEY, $setsKeys);
-
-        foreach ($setsKeys as $key) {
-            if (!$this->redis->exists($key)) {
-                throw new \BadMethodCallException("Set :-> $key not found!");
-            }
-        }
-
-        if(!$this->redis->exists($dbResultId)){
-            $this->redis->zinterstore($dbResultId, $setsKeys);
-            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE MISS");
-        } else{
-            $this->logger->debug(__METHOD__ . " $dbResultId ->: CACHE HIT");
-        }
-
-        if(self::CACHE_TTL){
-            $this->redis->expire($dbResultId, self::CACHE_TTL);
-        }
-
-        $this->logger->debug(__METHOD__ . " Result :=> $dbResultId");
-
-        return $dbResultId;
-    }
-
-    private function getDocumentId(string $documentDbKey){
-        if (substr($documentDbKey, 0, strlen(self::DOCUMENTS_KEY)) != self::DOCUMENTS_KEY) {
-            throw new \BadMethodCallException("Invalid database id ->:$documentDbKey for redis storage");
-        }
-
-        return substr($documentDbKey, strlen(self::DOCUMENTS_KEY));
+        return new CollectionDto($id, $content);
     }
 
     private function getKeywordId(string $keywordDbKey): string
@@ -237,23 +246,6 @@ class RedisManager implements DocumentManager
         }
 
         return substr($keywordDbKey, strlen(self::TOKENS_KEY));
-    }
-
-    private function getKeywordDbKey(string $keywordId): string
-    {
-        return self::TOKENS_KEY . $keywordId;
-    }
-    private function getDocumentDbKey(string $documentId): string
-    {
-        return self::DOCUMENTS_KEY . $documentId;
-    }
-
-    private function generateCollectionCanonicalKey(string $prefix, array $collectionItems) :string{
-
-        sort($collectionItems);
-        $item_list = implode('_', $collectionItems);
-        return $prefix.$item_list;
-
     }
 
 

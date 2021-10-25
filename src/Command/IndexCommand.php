@@ -76,7 +76,7 @@ class IndexCommand extends ConsoleCommand
             return self::INDEX_ERROR;
         }
 
-        $this->logger->debug(__METHOD__." Document ".$document->getId(), ['redis ID' => $document->getDbId(), 'content' => $this->redisManager->getSortedSetById($document->getDbId())]);
+        $this->logger->debug(__METHOD__." Document ".$document->getId(), ['redis ID' => $document->getDbId(), 'content' => $this->redisManager->getListById($document->getDbId())]);
 
         $io->writeln('index ok ' . $document->getId());
 

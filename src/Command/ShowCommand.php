@@ -51,7 +51,7 @@ class ShowCommand extends ConsoleCommand
         $io->title('Document Details');
         foreach ($documents as $document) {
             $io->note("Document ID -> $document");
-            $documentContent = $this->redisManager->getRedis()->zrange($document, 0, -1);
+            $documentContent = $this->redisManager->getListById($document);
             $io->writeln($documentContent);
 
         }
