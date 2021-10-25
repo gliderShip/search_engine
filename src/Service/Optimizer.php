@@ -30,13 +30,11 @@ class Optimizer
             $rightExpression = $this->optimize($rightExpression);
         }
 
-        if ($leftExpression == $rightExpression) {
+        if ($this->equals($leftExpression, $rightExpression)) {
             return $leftExpression;
         }
 
         return $expression;
-
-
     }
 
     public function equals(ExpressionInterface $left, ExpressionInterface $right): bool
@@ -58,18 +56,8 @@ class Optimizer
                 return true;
             }
 
-            return false;
-
         }
-    }
 
-    public function op(ExpressionInterface $left, ExpressionInterface $right)
-    {
-
-        if (get_class($left) == get_class($right)) {
-            $leftFirstChild = $left->getLeftExpression();
-            $leftOperator = $left->getToken();
-            $leftRightChild = $left->getRightExpression();
-        }
+        return false;
     }
 }
