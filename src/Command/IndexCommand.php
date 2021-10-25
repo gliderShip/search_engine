@@ -72,13 +72,13 @@ class IndexCommand extends ConsoleCommand
             $this->indexArgumentsValidator->validate($this->documentDto);
             $document = $this->documentManager->upsert($this->documentDto);
         } catch (ConsoleException $e) {
-            $io->write($e->getMessage());
+            $io->writeln($e->getMessage());
             return self::INDEX_ERROR;
         }
 
         $this->logger->debug(__METHOD__." Document ".$document->getId(), ['redis ID' => $document->getDbId(), 'content' => $this->redisManager->getSortedSetById($document->getDbId())]);
 
-        $io->write('index ok ' . $document->getId());
+        $io->writeln('index ok ' . $document->getId());
 
         return self::CONSOLE_SUCCESS;
     }

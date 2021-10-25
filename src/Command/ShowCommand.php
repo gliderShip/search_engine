@@ -59,8 +59,10 @@ class ShowCommand extends ConsoleCommand
         $io->title('Token Details');
         foreach ($tokens as $token) {
             $io->note("Token ID -> $token");
-            $tokenContent = $this->redisManager->getRedis()->zrange($token, 0, -1);
-            $io->writeln($tokenContent);
+            $tokenContent = $this->redisManager->getRedis()->zrange($token, 0, -1, ['withscores' => TRUE]);
+            foreach ($tokenContent as $key => $value) {
+                $io->writeln("$key => score ($value)");
+            }
 
         }
 

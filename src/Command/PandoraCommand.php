@@ -18,76 +18,69 @@ class PandoraCommand extends ConsoleCommand
     protected static $defaultName = 'pandora';
     protected static $defaultDescription = 'A box that would have been better left closed';
 
-    private string $command;
-    private string $userRequest;
+    private ?string $command = null;
     private int $consecutiveErrors = 0;
-
-
 
     protected function configure(): void
     {
         $this->setDescription(self::$defaultDescription);
     }
 
-    protected function initialize(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        parent::initialize($input, $output);
-
+        $io = new SymfonyStyle($input, $output);
         $helper = $this->getHelper('question');
 
         $question = new Question('');
         $question->setAutocompleterValues(self::COMMANDS);
-        $question->setNormalizer(function ($answer) {
-            $answer = strtolower($answer);
-            return $answer ? trim($answer) : '';
-        });
 
-        $question->setValidator(function ($answer) {
-            $this->command = $this->validateCommand($answer);
-            $this->consecutiveErrors = 0;
-            return $answer;
-        });
 
-        $this->userRequest = $helper->ask($input, $output, $question);
+        while (true) {
+            try {
+                $userRequest = $helper->ask($input, $output, $question);
+                $userRequest = $this->normalizeInput($userRequest);
+                $this->command = $this->validateCommand($userRequest);
+                $this->executeCommand($this->command, $userRequest, $output);
+                $this->consecutiveErrors = 0;
 
-    }
-
-    protected function execute(InputInterface $input, OutputInterface $output): int
-    {
-        $io = new SymfonyStyle($input, $output);
-        $returnCode = self::CONSOLE_SUCCESS;
-
-        try{
-            $returnCode = $this->executeCommand($this->command, $this->userRequest, $output);
-        } catch (ConsoleException $e){
-            $io->write($e->getMessage());
+            } catch (ConsoleException $e) {
+                ++$this->consecutiveErrors;
+                $io->writeln($e->getMessage());
+                if ($this->consecutiveErrors >= self::NERVOUS_BREAKDOWN_THRESHOLD) {
+                    $this->crash();
+                }
+            }
         }
 
-        return $returnCode;
     }
 
+    private function normalizeInput(?string $input): string
+    {
+        $input = strtolower($input);
+        return $input ? trim($input) : '';
+    }
+
+    /**
+     * @throws CommandException
+     */
     private function validateCommand(string $userRequest): string
     {
         $command = strtok($userRequest, " ");
+        if(empty($command)){
+            throw new CommandException($command, "hint-> try typing something intelligible before pressing enter ;-)");
+        }
         if (!in_array($command, self::COMMANDS)) {
-            ++$this->consecutiveErrors;
-            if ($this->consecutiveErrors >= self::NERVOUS_BREAKDOWN_THRESHOLD) {
-                $this->crash();
-            } else {
-                throw new CommandException($command, "$userRequest command not in our repertoire");
-            }
+            throw new CommandException($command, "command ->:[$userRequest] not in our repertoire");
         }
 
         return $command;
     }
 
-    private function crash()
-    {
-        exit("error : ℙ𝕒𝕟𝕕𝕠𝕣𝕒 ⲓ𝛓 ⲉⲭⲣⲉꞅⲓⲉⲛⲥⲓⲛ𝓰 a 🅼🅴🅽🆃🅰🅻 вⷡrͬaͣᴋⷦdͩoͦwn" . "Ē̶̡͎͉̖̟͒̚ṛ̸̽͑r̷̨͇̗̬͍͖̓ö̸͍̗́̚r̵̡̤̐͘͝:̸̥̪͔̻̍͆͊̚ ̷̛̥͔͑̑̀ͅ4̶͈͔̔͗̍̊̊͆1̴̙̟͇́̎̈̿̂͊8̸̡̙͈̺̖̫̃ ̶͓̳̞͆̃͒ͅI̸̼̲̱̜̿͆'̸̰̒́̈͝m̸̨̛̯͉̘̭͐̒̑ͅ ̴̧͎̙͇͈̝̅̓ã̵̪͇̥̜͈̦̍ ̷̢͈̥̫͐t̸̡̪̜͛e̷̛͍̥̩̳̘͒̑͒͝a̸̭͚̭͑̋͋͊̎͌ṕ̸̗̊o̸̪͇̠̰̟̣̾̃͒̋̈́t̴̖̄̍͊͘!̸̜̺͈̄͛̊̕͠");
-
-    }
-
-    private function executeCommand(string $command, string $userRequest, OutputInterface $output): string
+    /**
+     * @throws CommandException
+     * @throws ArgumentException
+     */
+    private function executeCommand(string $command, string $userRequest, OutputInterface $output)
     {
         switch ($command) {
             case self::COMMANDS['exit']:
@@ -102,22 +95,28 @@ class PandoraCommand extends ConsoleCommand
                 throw new \BadMethodCallException("Unknown command $command");
         }
 
-        return $returnCode;
+        if ($returnCode != self::CONSOLE_SUCCESS) {
+            throw new CommandException($command, "Exited with error code $returnCode", $returnCode);
+        }
     }
 
+    /**
+     * @throws ArgumentException
+     * @throws CommandException
+     */
     private function indexDocument(string $command, string $userRequest, OutputInterface $output): string
     {
         $indexCommand = $this->getApplication()->find(IndexCommand::getDefaultName());
 
         $arguments = $this->getUserRequestArguments(IndexCommand::getDefaultName(), $userRequest);
 
-        if(count($arguments) < 2){
+        if (count($arguments) < 2) {
             throw new ArgumentException($command, "Please provide the $command command arguments!");
         }
 
         $commandArguments = [
-            'docId'  => array_shift($arguments),
-            'tokens'  => $arguments,
+            'docId' => array_shift($arguments),
+            'tokens' => $arguments,
         ];
 
         $indexCommandInput = new ArrayInput($commandArguments);
@@ -130,20 +129,39 @@ class PandoraCommand extends ConsoleCommand
         return $returnCode;
     }
 
+    /**
+     * @throws ArgumentException
+     */
+    private function getUserRequestArguments(string $command, $userRequest): array
+    {
+        // arguments are everything after the first space
+        $argumentsString = substr(strstr($userRequest, " "), 1);
+        $arguments = explode(' ', $argumentsString);
+
+        if (count($arguments) < 1) {
+            throw new ArgumentException($command, "Please provide the $command command arguments!");
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * @throws ArgumentException
+     * @throws CommandException
+     */
     private function queryDocuments(string $command, string $userRequest, OutputInterface $output): string
     {
         $queryCommand = $this->getApplication()->find(QueryCommand::getDefaultName());
 
         $arguments = $this->getUserRequestArguments(QueryCommand::getDefaultName(), $userRequest);
 
-        if(empty($arguments) || empty($arguments[0])){
+        if (empty($arguments) || empty($arguments[0])) {
             throw new ArgumentException($command, "Please provide the $command command arguments!");
         }
 
         $commandArguments = [
-            'expression'  => $arguments,
+            'expression' => $arguments,
         ];
-        dump($commandArguments);
 
         $queryCommandInput = new ArrayInput($commandArguments);
         try {
@@ -155,19 +173,10 @@ class PandoraCommand extends ConsoleCommand
         return $returnCode;
     }
 
-    /**
-     * @throws ArgumentException
-     */
-    private function getUserRequestArguments(string $command, $userRequest): array{
-        // arguments are everything after the first space
-        $argumentsString =  substr(strstr($userRequest," "), 1);
-        $arguments = explode(' ', $argumentsString);
+    private function crash()
+    {
+        exit("error : ℙ𝕒𝕟𝕕𝕠𝕣𝕒 ⲓ𝛓 ⲉⲭⲣⲉꞅⲓⲉⲛⲥⲓⲛ𝓰 a 🅼🅴🅽🆃🅰🅻 вⷡrͬaͣᴋⷦdͩoͦwn" . "Ē̶̡͎͉̖̟͒̚ṛ̸̽͑r̷̨͇̗̬͍͖̓ö̸͍̗́̚r̵̡̤̐͘͝:̸̥̪͔̻̍͆͊̚ ̷̛̥͔͑̑̀ͅ4̶͈͔̔͗̍̊̊͆1̴̙̟͇́̎̈̿̂͊8̸̡̙͈̺̖̫̃ ̶͓̳̞͆̃͒ͅI̸̼̲̱̜̿͆'̸̰̒́̈͝m̸̨̛̯͉̘̭͐̒̑ͅ ̴̧͎̙͇͈̝̅̓ã̵̪͇̥̜͈̦̍ ̷̢͈̥̫͐t̸̡̪̜͛e̷̛͍̥̩̳̘͒̑͒͝a̸̭͚̭͑̋͋͊̎͌ṕ̸̗̊o̸̪͇̠̰̟̣̾̃͒̋̈́t̴̖̄̍͊͘!̸̜̺͈̄͛̊̕͠");
 
-        if(count($arguments) < 1){
-            throw new ArgumentException($command, "Please provide the $command command arguments!");
-        }
-
-        return $arguments;
     }
 
 }
